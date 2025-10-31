@@ -1,3 +1,25 @@
+"""
+# calculations.py
+from typing import Dict
+
+PRICES = {"Оцинкований": 75, "Чорний": 55, "Мідний": 700, "ПВХ": 110}
+PVC_COEF = {1.2: 0.3896, 1.5: 0.4711, 1.8: 0.5402, 2.0: 0.5794}
+
+def calculate_weight(a: int, d: float, material: str = "Оцинкований") -> float:
+    base = 13.4 * d**2 / a
+    if material == "Мідний":
+        return round(base * 1.141, 2)
+    if material == "ПВХ":
+        coef = PVC_COEF.get(d, 0.5)
+        return round(base * coef, 2)
+    return round(base, 2)
+
+def calculate_length(a: int, area: float) -> int:
+    return round(2173 / a * area)
+
+def calculate_cost(weight: float, material: str) -> float:
+    return round(weight * PRICES.get(material, 75), 2)
+"""
 from typing import Dict
 
 # --- Константи ---
