@@ -4,15 +4,15 @@ import pandas as pd
 import os
 from typing import Dict, Any
 
-# --- Шляхи до баз ---
+# --- Конфігурація баз ---
 DB_DIR = "data"
 DB_CLI = os.path.join(DB_DIR, "clients.db")
 DB_SUP = os.path.join(DB_DIR, "suppliers.db")
 DB_HIST = os.path.join(DB_DIR, "history.db")
 
-# --- Ініціалізація всіх баз ---
+# --- Ініціалізація ---
 def init_db() -> None:
-    """Створює папку data/ та ініціалізує всі SQLite-бази."""
+    """Створює папку data/ та ініціалізує всі таблиці."""
     os.makedirs(DB_DIR, exist_ok=True)
 
     # Клієнти
@@ -69,7 +69,7 @@ def init_db() -> None:
 def _create_table(db_path: str, table_name: str, schema: str) -> None:
     """Створює таблицю, якщо її немає."""
     conn = sqlite3.connect(db_path)
-    conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({schema})")
+    conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({schema.strip()})")
     conn.commit()
     conn.close()
 
@@ -77,7 +77,7 @@ def _create_table(db_path: str, table_name: str, schema: str) -> None:
 # КЛІЄНТИ
 # ===================================================================
 def add_client(name: str, email: str, phone: str, balance: float, logo_b64: str | None) -> None:
-    """Додає клієнта в базу."""
+    """Додає клієнта."""
     conn = sqlite3.connect(DB_CLI)
     cursor = conn.cursor()
     cursor.execute(
@@ -88,7 +88,7 @@ def add_client(name: str, email: str, phone: str, balance: float, logo_b64: str 
     conn.close()
 
 def get_clients() -> pd.DataFrame:
-    """Повертає всіх клієнтів."""
+    """Повертає клієнтів."""
     conn = sqlite3.connect(DB_CLI)
     df = pd.read_sql_query("SELECT id, name, email, phone, balance FROM clients ORDER BY id DESC", conn)
     conn.close()
@@ -109,7 +109,7 @@ def add_supplier(name: str, email: str, phone: str, balance: float, logo_b64: st
     conn.close()
 
 def get_suppliers() -> pd.DataFrame:
-    """Повертає всіх постачальників."""
+    """Повертає постачальників."""
     conn = sqlite3.connect(DB_SUP)
     df = pd.read_sql_query("SELECT id, name, email, phone, balance FROM suppliers ORDER BY id DESC", conn)
     conn.close()
@@ -119,15 +119,14 @@ def get_suppliers() -> pd.DataFrame:
 # ІСТОРІЯ РОЗРАХУНКІВ
 # ===================================================================
 def add_calculation(calc_dict: Dict[str, Any]) -> None:
-    """Зберігає результат розрахунку в історію."""
+    """Зберігає розрахунок."""
     conn = sqlite3.connect(DB_HIST)
     df = pd.DataFrame([calc_dict])
     df.to_sql("history", conn, if_exists="append", index=False)
     conn.close()
 
-@st.cache_data(ttl=300)  # Кеш на 5 хвилин
 def get_history(limit: int = 100) -> pd.DataFrame:
-    """Повертає останні N записів історії."""
+    """Повертає останні N записів."""
     conn = sqlite3.connect(DB_HIST)
     query = f"""
         SELECT 
@@ -143,10 +142,8 @@ def get_history(limit: int = 100) -> pd.DataFrame:
     return df
 
 def clear_history() -> None:
-    """Очищає всю історію."""
+    """Очищає історію."""
     conn = sqlite3.connect(DB_HIST)
     conn.execute("DELETE FROM history")
     conn.commit()
     conn.close()
-    # Скидаємо кеш
-    get_history.clear()
