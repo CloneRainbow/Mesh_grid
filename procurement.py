@@ -1,14 +1,14 @@
-# procurement.py — ВИПРАВЛЕНИЙ (усі docstring закриті)
+# procurement.py — ГОТОВИЙ ДО ІМПОРТУ В app.py
 import sqlite3
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
 
-# --- Шляхи ---
+# --- Шляхи до баз ---
 WAREHOUSE_DB = "data/warehouse.db"
 SUPPLIERS_DB = "data/suppliers.db"
 
-# --- Мін. запаси ---
+# --- Мінімальні запаси ---
 MIN_STOCK = {
     "Оцинкований": 50,
     "Чорний": 30,
@@ -33,11 +33,11 @@ def get_current_stock():
         conn.close()
         return dict(zip(df["material"], df["total_quantity"]))
     except Exception as e:
-        st.error(f"Помилка: {e}")
+        st.error(f"Помилка читання складу: {e}")
         return {}
 
 # ===================================================================
-# 2. РЕКОМЕНДАЦІЇ
+# 2. РЕКОМЕНДАЦІЇ ПО ЗАКУПІВЛЯХ
 # ===================================================================
 @st.cache_data(ttl=300)
 def recommend_procurement():
@@ -47,6 +47,7 @@ def recommend_procurement():
     - Поточний запас
     - Мін. запас
     - Треба замовити
+    - Пріоритет
     """
     current = get_current_stock()
     recommendations = []
@@ -63,7 +64,7 @@ def recommend_procurement():
         })
 
     df = pd.DataFrame(recommendations)
-    df = df[df["to_order"] > 0]
+    df = df[df["to_order"] > 0]  # Тільки те, що треба замовити
     df = df.sort_values("to_order", ascending=False)
     return df
 
@@ -72,9 +73,10 @@ def recommend_procurement():
 # ===================================================================
 def create_purchase_order(supplier_id: int, material: str, quantity: int, price_per_unit: float):
     """
-    Додає замовлення в purchase_orders
+    Додає нове замовлення в таблицю purchase_orders
     """
     total_cost = quantity * price_per_unit
+    order_date = datetime.now().strftime("%Y-%m-%d")
     delivery_date = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
 
     try:
@@ -83,21 +85,20 @@ def create_purchase_order(supplier_id: int, material: str, quantity: int, price_
             INSERT INTO purchase_orders 
             (supplier_id, material, quantity, price_per_unit, total_cost, status, order_date, delivery_date)
             VALUES (?, ?, ?, ?, ?, 'planned', ?, ?)
-        """, (supplier_id, material, quantity, price_per_unit, total_cost, 
-              datetime.now().strftime("%Y-%m-%d"), delivery_date))
+        """, (supplier_id, material, quantity, price_per_unit, total_cost, order_date, delivery_date))
         conn.commit()
         conn.close()
         st.success(f"Замовлення на {quantity} од. {material} створено!")
-        st.cache_data.clear()
+        st.cache_data.clear()  # Оновлюємо кеш
     except Exception as e:
-        st.error(f"Помилка: {e}")
+        st.error(f"Помилка створення замовлення: {e}")
 
 # ===================================================================
 # 4. АКТИВНІ ЗАМОВЛЕННЯ
 # ===================================================================
 @st.cache_data(ttl=300)
 def get_active_orders():
-    """Повертає активні замовлення"""
+    """Повертає активні замовлення (planned, ordered) з назвою постачальника"""
     try:
         conn = sqlite3.connect(SUPPLIERS_DB)
         df = pd.read_sql_query("""
@@ -110,5 +111,5 @@ def get_active_orders():
         conn.close()
         return df
     except Exception as e:
-        st.error(f"Помилка: {e}")
+        st.error(f"Помилка читання замовлень: {e}")
         return pd.DataFrame()
